@@ -1,0 +1,143 @@
+// src/assets/styles/_common.scss
+
+// --- Colors ---
+$color-primary-blue: #469efc;
+$color-primary-blue-darker: #0056b3; // For hover states
+$color-secondary-grey: #6c757d;
+$color-secondary-grey-darker: #5a6268; // For hover states
+$color-confirm-green: #28a745;
+$color-confirm-green-darker: #218838; // For hover states
+$color-text-dark: #333;
+$color-text-medium-grey: #666;
+$color-text-light-grey: #888; // For policy text
+$color-text-disabled: #bbb;
+$color-error: #e74c3c;
+$color-info: #3498db;
+
+// Backgrounds / Borders
+$color-bg-light: #f9f9f9; // Common light background for cards
+$color-bg-white: #ffffff;
+$color-bg-light-grey-alt: #e0e0e0; // For progress bar track / disabled inputs
+$color-border-light: #ddd;
+$color-border-medium: #e0e0e0; // For card borders
+$color-border-darker: #ccc; // For separators
+
+// --- Spacing ---
+$spacing-xxs: 2px;
+$spacing-xs: 5px;
+$spacing-sm: 8px;
+$spacing-md: 10px;
+$spacing-lg: 15px;
+$spacing-xl: 20px;
+$spacing-xxl: 30px;
+
+// --- Font Sizes ---
+$font-size-xs: 0.85em; // For policy text
+$font-size-sm: 0.9em; // For labels, descriptions
+$font-size-md: 1em;   // For input text, body
+$font-size-lg: 1.1em; // For sub-headings (h3)
+$font-size-xl: 1.2em; // For smaller card headings, icons
+$font-size-xxl: 1.4em; // For step H2
+$font-size-xxxl: 1.5em; // For header icons
+$font-size-xxxxl: 1.8em; // For "Appointment Confirmed!" H2
+$font-size-xxxxxl: 2.2em; // For main H1
+
+// --- Mixins ---
+
+// Mixin for common step container styles
+@mixin step-card-base {
+  padding: $spacing-lg $spacing-xl; // 15px 20px
+  background-color: $color-bg-light;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  max-width: 1000px;
+  margin: $spacing-md auto; // 10px auto
+  text-align: left;
+  width: 100%;
+}
+
+// Mixin for common step header (icon + h2)
+@mixin step-header-base {
+  display: flex;
+  align-items: center;
+  margin-bottom: $spacing-xs; // 5px
+}
+
+// Mixin for common header icon style
+@mixin step-header-icon-base {
+  font-size: $font-size-xxxl; // 1.5em
+  color: $color-text-dark; // #333
+  margin-right: $spacing-md; // 10px
+  line-height: 1.2;
+}
+
+// Mixin for primary action button (e.g., Next)
+@mixin primary-button {
+  background-color: $color-primary-blue;
+  color: $color-bg-white;
+  padding: $spacing-md $spacing-xl; // 10px 25px
+  border: none;
+  border-radius: $spacing-xs; // 5px
+  font-size: $font-size-md; // 1em
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background-color: $color-primary-blue-darker;
+  }
+  &:disabled {
+    background-color: $color-bg-light-grey-alt; // #cccccc
+    cursor: not-allowed;
+  }
+}
+
+// Mixin for secondary action button (e.g., Back, View All)
+@mixin secondary-button {
+  background-color: $color-secondary-grey;
+  color: $color-bg-white;
+  padding: $spacing-md $spacing-xl;
+  border: none;
+  border-radius: $spacing-xs;
+  font-size: $font-size-md;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background-color: $color-secondary-grey-darker;
+  }
+  &:disabled {
+    background-color: $color-bg-light-grey-alt;
+    color: $color-text-light-grey;
+    cursor: not-allowed;
+  }
+}
+
+// Mixin for common detail item (label + value)
+@mixin detail-item-base {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  margin-bottom: $spacing-sm; // 8px
+
+  strong {
+    color: $color-text-dark;
+    font-size: $font-size-sm;
+    margin-right: $spacing-xs; // 5px
+    white-space: nowrap;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+
+  span {
+    color: $color-text-dark;
+    font-size: $font-size-md;
+    font-weight: normal; // Default to normal, can be overridden
+    word-break: break-word;
+    flex-grow: 1;
+    flex-shrink: 1;
+  }
+
+  &.full-width-detail {
+    grid-column: 1 / -1;
+  }
+}
