@@ -33,7 +33,6 @@ export default {
     const router = useRouter();
     const route = useRoute();
 
-    // Data passed from RequestCodeView via query parameters
     const contactIdentifier = ref(route.query.contact || '');
     const method = ref(route.query.method || 'email');
     const successMessage = ref(route.query.message ? decodeURIComponent(route.query.message) : '');
@@ -41,7 +40,6 @@ export default {
     const code = ref('');
     const loading = ref(false);
     const errorMessage = ref('');
-    // No need for appointments ref here, as it's passed to AppointmentsListView
 
     const contactIdentifierDisplay = computed(() => {
         if (contactIdentifier.value.includes('@')) {
@@ -68,13 +66,19 @@ export default {
           Method: method.value,
         });
 
-        // Assuming backend returns PatientId, FullName, Email, ContactNumber in result
         if (result.isSuccess) {
-            // CRITICAL: On successful verification, navigate to MyAppointments view with patientId and details
+            // CRITICAL NEW: Store verification status and patient details in sessionStorage
+            sessionStorage.setItem('isPatientVerified', 'true');
+            sessionStorage.setItem('verifiedPatientId', result.patientId);
+            sessionStorage.setItem('verifiedPatientContact', result.contactNumber);
+            sessionStorage.setItem('verifiedPatientEmail', result.email);
+            sessionStorage.setItem('verifiedPatientFullName', result.fullName || ''); // Store full name for display
+
+            // On successful verification, navigate to MyAppointments view
             router.push({
                 name: 'MyAppointments', 
-                query: { 
-                    patientId: result.patientId, // Pass patientId received from backend
+                query: { // Still pass query params for immediate prop availability in ListView
+                    patientId: result.patientId, 
                     contact: result.contactNumber, 
                     email: result.email,
                     patientFullName: result.fullName // Pass full name for display
@@ -93,11 +97,13 @@ export default {
     };
 
     const requestNewCode = () => {
-        router.push({ name: 'RequestCode' });
+        router.push({ name: 'RequestCode' }); 
     };
 
     onMounted(() => {
-        if (!contactIdentifier.value) {
+        // If no contact is provided via URL (e.g., direct access), redirect back to RequestCode
+        // UNLESS user is coming back from MyAppointments (e.g., "Book a new appointment") and is already verified
+        if (!contactIdentifier.value && !sessionStorage.getItem('isPatientVerified')) {
             router.replace({ name: 'RequestCode' });
         }
     });

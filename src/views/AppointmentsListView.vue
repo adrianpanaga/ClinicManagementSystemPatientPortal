@@ -1,7 +1,8 @@
 <template>
   <div class="appointments-list-view">
     <div class="step-header">
-      <i class="fas fa-list-alt step-header-icon"></i> <h2>My Appointments</h2>
+      <i class="fas fa-list-alt step-header-icon"></i>
+      <h2>My Appointments</h2>
     </div>
     <p>View your upcoming and past appointments.</p>
 
@@ -47,44 +48,45 @@
       </div>
     </div>
     
-    <h3 v-else-if="appointments.length > 0" class="appointments-grid-header">Your Appointments {{ patientDisplayName ? `for ${patientDisplayName}` : '' }} ({{ appointments.length }})</h3>
+    <div v-else-if="appointments.length > 0"> 
+      <h3 class="appointments-grid-header">Your Appointments {{ patientDisplayName ? `for ${patientDisplayName}` : '' }} ({{ appointments.length }})</h3>
+      <div class="appointments-grid">
+        <div v-for="appt in appointments" :key="appt.appointmentId" class="appointment-card">
+          <div class="card-header-date">
+            <i class="fas fa-calendar-alt header-icon"></i>
+            <span>{{ formatDate(appt.appointmentDateTime) }}</span>
+          </div>
+          <div class="card-header-time">
+            <i class="fas fa-clock header-icon"></i>
+            <span>{{ formatTime(appt.appointmentDateTime) }}</span>
+          </div>
+          
+          <div class="card-section">
+            <div class="detail-item-card">
+              <strong><i class="fas fa-user label-icon"></i> Patient:</strong>
+              <span>{{ appt.patient ? appt.patient.fullName || `${appt.patient.firstName} ${appt.patient.lastName}` : 'N/A' }}</span>
+            </div>
+            <div class="detail-item-card">
+              <strong><i class="fas fa-stethoscope label-icon"></i> Service:</strong>
+              <span>{{ appt.service ? appt.service.serviceName : 'N/A' }}</span>
+            </div>
+            <div class="detail-item-card">
+              <strong><i class="fas fa-user-md label-icon"></i> Doctor:</strong>
+              <span>{{ appt.doctor ? (appt.doctor.fullName || `Dr. ${appt.doctor.firstName} ${appt.doctor.lastName}`) : 'N/A' }}</span>
+            </div>
+            <div class="detail-item-card full-width-card-detail">
+              <strong><i class="fas fa-notes-medical label-icon"></i> Reason:</strong>
+              <span>{{ appt.notes || 'N/A' }}</span>
+            </div>
+          </div>
 
-    <div v-if="appointments.length > 0" class="appointments-grid">
-      <div v-for="appt in appointments" :key="appt.appointmentId" class="appointment-card">
-        <div class="card-header-date">
-          <i class="fas fa-calendar-alt header-icon"></i>
-          <span>{{ formatDate(appt.appointmentDateTime) }}</span>
-        </div>
-        <div class="card-header-time">
-          <i class="fas fa-clock header-icon"></i>
-          <span>{{ formatTime(appt.appointmentDateTime) }}</span>
-        </div>
-        
-        <div class="card-section">
-          <div class="detail-item-card">
-            <strong><i class="fas fa-user label-icon"></i> Patient:</strong>
-            <span>{{ appt.patient ? appt.patient.fullName || `${appt.patient.firstName} ${appt.patient.lastName}` : 'N/A' }}</span>
+          <div class="appointment-status">
+              Status: <strong>{{ appt.status }}</strong>
           </div>
-          <div class="detail-item-card">
-            <strong><i class="fas fa-stethoscope label-icon"></i> Service:</strong>
-            <span>{{ appt.service ? appt.service.serviceName : 'N/A' }}</span>
-          </div>
-          <div class="detail-item-card">
-            <strong><i class="fas fa-user-md label-icon"></i> Doctor:</strong>
-            <span>{{ appt.doctor ? (appt.doctor.fullName || `Dr. ${appt.doctor.firstName} ${appt.doctor.lastName}`) : 'N/A' }}</span>
-          </div>
-          <div class="detail-item-card full-width-card-detail">
-            <strong><i class="fas fa-notes-medical label-icon"></i> Reason:</strong>
-            <span>{{ appt.notes || 'N/A' }}</span>
-          </div>
-        </div>
-
-        <div class="appointment-status">
-            Status: <strong>{{ appt.status }}</strong>
         </div>
       </div>
     </div>
-    <div v-else-if="appointments.length === 0 && initialFetchAttempted && !loading && !error" class="no-appointments-message">
+    <div v-else class="no-appointments-message">
       No appointments found {{ patientDisplayName ? `for ${patientDisplayName}` : '' }}. Please verify your contact information or book a new appointment.
     </div>
 
@@ -95,17 +97,17 @@
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { getAppointmentsByPatientContact, getAppointmentsByPatientId } from '@/services/api'; 
 import { useRouter, useRoute } from 'vue-router';
 
 export default {
   name: 'AppointmentsListView',
   props: {
-    patientId: { type: [Number, String], default: null }, // patientId from route.query
+    patientId: { type: [Number, String], default: null },
     contact: { type: String, default: '' },
     email: { type: String, default: '' },
-    patientFullName: { type: String, default: '' }, // Passed from VerifyCodeView/Confirmation
+    patientFullName: { type: String, default: '' },
   },
   setup(props) { 
     const router = useRouter();
@@ -119,71 +121,79 @@ export default {
     const appointments = ref([]);
     const loading = ref(false);
     const error = ref(null);
-    const initialFetchAttempted = ref(false); // NEW: Track if initial fetch has been tried
+    const initialFetchAttempted = ref(false); 
 
-    // Check if initial query parameters (contact/email/patientId) are present
     const hasInitialQueryParams = computed(() => {
         return !!(props.patientId || props.contact || props.email);
     });
 
-    // Patient display name for messages
     const patientDisplayName = computed(() => {
-        // Prioritize patientFullName prop if it came from verification
         if (props.patientFullName) return props.patientFullName;
-        if (props.email) return props.email; // Fallback to email from prop
-        if (lookupDetails.email) return lookupDetails.email; // Fallback to form email
+        if (props.email) return props.email;
+        if (lookupDetails.email) return lookupDetails.email;
+        if (props.contact) return props.contact; // Added fallback for contact display if no email
+        if (lookupDetails.contactNumber) return lookupDetails.contactNumber;
         return '';
     });
 
     const isLookupFormValid = computed(() => {
-      // Ensure both fields are non-empty before enabling submit
       return lookupDetails.contactNumber.trim() !== '' &&
              lookupDetails.email.trim() !== '';
     });
 
     const fetchAppointments = async () => {
+      console.log("--- fetchAppointments started ---");
+      console.log("Props:", props.patientId, props.contact, props.email);
+      console.log("Lookup Details (form):", lookupDetails.contactNumber, lookupDetails.email);
+
       loading.value = true;
       error.value = null;
       appointments.value = []; 
-      initialFetchAttempted.value = true; // Mark initial fetch attempt
+      initialFetchAttempted.value = true;
 
       let contactToUse;
       let emailToUse;
-      let patientIdToUse = props.patientId; // Prioritize patientId if available from props
+      let patientIdToUse = props.patientId; 
 
-      // Determine contact details: prioritize props (from verification), then form, then route.query (for initial direct visit)
-      if (props.contact && props.email) { // If contact/email came directly as props
+      if (props.contact && props.email) {
         contactToUse = props.contact;
         emailToUse = props.email;
-      } else if (route.query.contact && route.query.email && hasInitialQueryParams.value && !isLookupFormValid.value) { // If came from booking confirmation redirect
+      } else if (route.query.contact && route.query.email && hasInitialQueryParams.value) { 
         contactToUse = route.query.contact;
         emailToUse = route.query.email;
-      } else { // Use form values (manual entry or prefilled by mount)
+      } else { 
         contactToUse = lookupDetails.contactNumber;
         emailToUse = lookupDetails.email;
       }
       
-      // Final validation before API call
       if (!patientIdToUse && (!contactToUse || contactToUse.trim() === '' || !emailToUse || emailToUse.trim() === '')) {
-          error.value = 'Contact number and email are required.'; // Error if no PatientId and no contact/email
+          error.value = 'Contact number and email are required.';
           loading.value = false;
+          console.log("Validation failed in fetchAppointments. PatientId:", patientIdToUse, "Contact:", contactToUse, "Email:", emailToUse);
           return;
       }
       
       try {
         let response;
-        if (patientIdToUse) { // If patientId is available, use it for direct lookup
-          response = await getAppointmentsByPatientId(patientIdToUse); // Call by PatientId
-        } else { // Fallback to contact lookup if no PatientId
-          response = await getAppointmentsByPatientContact({ contactNumber: contactToUse, email: emailToUse });
+        if (patientIdToUse) {
+            console.log("Calling getAppointmentsByPatientId with:", patientIdToUse);
+            response = await getAppointmentsByPatientId(patientIdToUse);
+        } else {
+            console.log("Calling getAppointmentsByPatientContact with:", contactToUse, emailToUse);
+            response = await getAppointmentsByPatientContact({ contactNumber: contactToUse, email: emailToUse });
         }
         
+        console.log("Raw API response in frontend:", response); // CRUCIAL LOG
         appointments.value = response;
+        console.log("Appointments array after assignment:", appointments.value); // CRUCIAL LOG
+        console.log("Appointments.value.length:", appointments.value.length); // CRUCIAL LOG
+
       } catch (err) {
         error.value = err.response?.data?.message || 'Failed to retrieve appointments.';
         console.error("Error fetching appointments:", err);
       } finally {
         loading.value = false;
+        console.log("--- fetchAppointments finished ---");
       }
     };
 
@@ -204,19 +214,24 @@ export default {
     };
 
     const showFormForRetry = () => {
-        initialFetchAttempted.value = false; // Show the form again
-        appointments.value = []; // Clear appointments
-        error.value = null; // Clear error
+        initialFetchAttempted.value = false;
+        appointments.value = [];
+        error.value = null;
     };
 
     onMounted(() => {
-        // If query params exist when page mounts, attempt fetch immediately
+        console.log("AppointmentsListView Mounted. Initial props:", props.patientId, props.contact, props.email);
         if (hasInitialQueryParams.value) {
-            // Pre-fill lookupDetails for display if coming from URL, even if patientId is used for fetch
-            lookupDetails.contactNumber = props.contact || route.query.contact || '';
-            lookupDetails.email = props.email || route.query.email || '';
             fetchAppointments();
         }
+    });
+    
+    // Watch for prop changes if component stays mounted across route query changes (less common)
+    watch([() => props.patientId, () => props.contact, () => props.email], (newVal, oldVal) => {
+      if (newVal.some((val, i) => val !== oldVal[i])) { // Only refetch if identity changed
+        console.log("AppointmentsListView Props changed. Re-fetching.");
+        fetchAppointments();
+      }
     });
 
     return {
@@ -243,14 +258,14 @@ export default {
 
 .appointments-list-view {
   @include step-card-base; // Reuses common card styling
-  max-width: 1000px; // Wider to accommodate card content
+  max-width: 800px; // Wider to accommodate card content
   padding: $spacing-xl; // 20px
 }
 
 .step-header {
   @include step-header-base;
   justify-content: flex-start; // Align to start
-  margin-bottom: 0; // CHANGED: Reduced space below the step header
+  margin-bottom: $spacing-xs; // 5px
 }
 
 .step-header-icon {
@@ -266,82 +281,12 @@ h2 {
 p {
   color: $color-text-medium-grey;
   font-size: $font-size-md;
-  margin-top: 0; // CHANGED: Ensure no top margin
-  margin-bottom: $spacing-xl; // Keep bottom margin for space before form/list
+  margin-bottom: $spacing-xl; // 20px
 }
 
-.form-instruction {
-  text-align: center;
-  margin-bottom: $spacing-xxl;
-}
-
-/* Patient Lookup Form */
+/* Patient Lookup Form - Hide it */
 .patient-lookup-form {
-  margin-bottom: $spacing-xxl;
-  width: 100%;
-  border: 1px solid $color-border-medium;
-  padding: $spacing-xl;
-  border-radius: $spacing-sm;
-  background-color: $color-bg-white;
-}
-
-.form-row {
-  display: flex;
-  gap: $spacing-xl;
-  margin-bottom: $spacing-lg;
-}
-
-.form-group {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-label {
-  font-size: $font-size-sm;
-  color: $color-text-dark;
-  margin-bottom: $spacing-xs;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-}
-
-.label-icon {
-  font-size: $font-size-md;
-  margin-right: $spacing-sm;
-  color: $color-text-medium-grey;
-}
-
-input[type="text"],
-input[type="email"],
-input[type="tel"] {
-  padding: $spacing-md $spacing-lg;
-  border: 1px solid $color-border-light;
-  border-radius: $spacing-xs;
-  font-size: $font-size-md;
-  color: $color-text-dark;
-  background-color: $color-bg-white;
-  width: 100%;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-
-  &:focus {
-    border-color: $color-primary-blue;
-    box-shadow: 0 0 0 $spacing-xxs rgba($color-primary-blue, 0.2);
-    outline: none;
-  }
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  margin-top: $spacing-xl;
-}
-
-button.next-button {
-  @include primary-button;
-  width: auto;
+  display: none; // HIDE THE FORM - Access is now protected by router guard
 }
 
 .loading-message, .error-message, .no-appointments-message {
@@ -350,7 +295,8 @@ button.next-button {
   border: 1px solid $color-border-light;
   border-radius: $spacing-xs;
   margin-top: $spacing-lg;
-  color: $color-error;
+  color: $color-error; // Default to error color
+  text-align: center;
 }
 
 .loading-message {
@@ -366,6 +312,19 @@ button.next-button {
     margin-top: $spacing-xxl;
 }
 
+.navigation-link { /* For "Go to Verification Page" link in error/no-appointments */
+    margin-top: $spacing-md;
+    text-align: center;
+    a {
+        color: $color-primary-blue;
+        text-decoration: none;
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+
 /* Styling for the appointments grid header */
 .appointments-grid-header {
     color: $color-primary-blue;
@@ -379,23 +338,23 @@ button.next-button {
 .appointments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: $spacing-xl;
-  margin-top: $spacing-md;
+  gap: $spacing-xl; // 20px gap between cards
+  margin-top: $spacing-md; // Reduced margin-top as header is now outside
   margin-bottom: $spacing-xxl;
 }
 
 .appointment-card {
   background-color: $color-bg-white;
   border: 1px solid $color-border-medium;
-  border-radius: $spacing-sm;
-  padding: $spacing-lg;
+  border-radius: $spacing-sm; // 8px
+  padding: $spacing-lg; // 15px
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
   text-align: left;
-  font-size: $font-size-sm;
+  font-size: $font-size-sm; // 0.9em
   color: $color-text-dark;
 
   .card-header-date, .card-header-time {
@@ -403,47 +362,47 @@ button.next-button {
     align-items: center;
     font-weight: bold;
     color: $color-primary-blue;
-    font-size: $font-size-lg;
-    margin-bottom: $spacing-xs;
+    font-size: $font-size-lg; // 1.1em
+    margin-bottom: $spacing-xs; // 5px
     
-    i {
-      font-size: $font-size-md;
-      margin-right: $spacing-xs;
+    i { // Icon
+      font-size: $font-size-md; // 1em
+      margin-right: $spacing-xs; // 5px
       color: $color-primary-blue;
     }
   }
 
   .card-header-time {
-    margin-bottom: $spacing-lg;
+    margin-bottom: $spacing-lg; // 15px space below time header
   }
 
   .card-section {
     width: 100%;
-    margin-bottom: $spacing-lg;
-    border-top: 1px solid $color-border-light;
-    padding-top: $spacing-lg;
+    margin-bottom: $spacing-lg; // 15px space between sections
+    border-top: 1px solid $color-border-light; // Separator line
+    padding-top: $spacing-lg; // 15px
   }
 
-  .detail-item-card {
+  .detail-item-card { // Reusing concept from review/confirm
     display: flex;
-    align-items: baseline;
-    margin-bottom: $spacing-sm;
+    align-items: baseline; // Align text by baseline
+    margin-bottom: $spacing-sm; // 8px between details
 
     strong {
       color: $color-text-dark;
-      font-size: $font-size-sm;
-      margin-right: $spacing-xs;
-      white-space: nowrap;
+      font-size: $font-size-sm; // 0.9em
+      margin-right: $spacing-xs; // 5px
+      white-space: nowrap; // Keep label on one line
     }
 
     span {
       color: $color-text-dark;
-      font-size: $font-size-md;
-      word-break: break-word;
-      flex-grow: 1;
+      font-size: $font-size-md; // 1em
+      word-break: break-word; // Allow values to break
+      flex-grow: 1; // Allow value to take space
     }
 
-    i {
+    i { // Icon within detail item
       font-size: $font-size-md;
       margin-right: $spacing-xs;
       color: $color-text-medium-grey;
@@ -456,28 +415,28 @@ button.next-button {
 
   .appointment-status {
     width: 100%;
-    text-align: right;
-    margin-top: $spacing-md;
+    text-align: right; // Status aligned right
+    margin-top: $spacing-md; // 10px
     font-weight: bold;
-    color: $color-primary-blue;
+    color: $color-primary-blue; // Example status color
   }
 }
 
 .navigation-buttons {
   margin-top: $spacing-xxl;
   display: flex;
-  justify-content: center;
+  justify-content: center; // Center buttons at the bottom
   width: 100%;
-  gap: $spacing-md;
+  gap: $spacing-md; // 10px between buttons
 }
 
-button.next-button {
+button.next-button { // For "Book a New Appointment"
   @include primary-button;
-  width: auto;
+  width: auto; // Auto width for this specific button
 }
 
 .secondary-button {
-  @include secondary-button;
-  width: auto;
+  @include secondary-button; // Use mixin
+  width: auto; // Auto width for this specific button
 }
 </style>
