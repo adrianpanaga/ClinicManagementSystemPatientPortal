@@ -1,20 +1,19 @@
 <template>
   <div class="appointment-verification">
-    <h2>View My Appointments</h2>
-    <p>Enter your registered email or phone number to receive a verification code.</p>
+    <h2>Verify Your Appointment</h2>
+    <p>Enter your contact details to view your appointments.</p>
 
-    <form @submit.prevent="onVerifyCode" v-if="!codeSent">
+    <form @submit.prevent="onRequestCode">
       <div class="form-group">
-        <label for="contactIdentifier">Email or Phone Number:</label>
+        <label for="contact">Contact Number / Email</label>
         <input
           type="text"
-          id="contactIdentifier"
-          v-model="contactIdentifier"
-          placeholder="e.g., patient@example.com or +639123456789"
+          id="contact"
+          v-model="contact"
           required
+          placeholder="e.g., 09123456789 or your@email.com"
         />
       </div>
-
       <div class="form-group">
         <label for="method">Receive code via:</label>
         <select id="method" v-model="method" required>
@@ -22,258 +21,302 @@
           <option value="sms">SMS</option>
         </select>
       </div>
-
-      <div class="form-group">
-        <label for="lastName">Last Name (Optional, for better matching):</label>
-        <input
-          type="text"
-          id="lastName"
-          v-model="lastName"
-          placeholder="e.g., Doe"
-        />
-      </div>
-
       <button type="submit" :disabled="loading">
-        {{ loading ? 'Sending...' : 'Send Verification Code' }}
+        {{ loading ? 'Sending...' : 'Request Code' }}
       </button>
+      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
     </form>
 
-    <form @submit.prevent="onVerifyCode" v-if="codeSent">
-      <p>A 6-digit code has been sent to {{ contactIdentifier }}. It expires in 5 minutes.</p>
+    <form v-if="showVerificationInput" @submit.prevent="onVerifyCode">
+      <h3>Verify Code</h3>
       <div class="form-group">
-        <label for="verificationCode">Enter Code:</label>
-        <input
-          type="text"
-          id="verificationCode"
-          v-model="verificationCode"
-          placeholder="e.g., 123456"
-          required
-        />
+        <label for="code">Verification Code</label>
+        <input type="text" id="code" v-model="verificationCode" required placeholder="Enter code" />
       </div>
       <button type="submit" :disabled="loading">
         {{ loading ? 'Verifying...' : 'Verify Code' }}
       </button>
-      <button type="button" @click="resetForm" :disabled="loading" class="secondary-button">Cancel</button>
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
     </form>
 
-    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-
-    <div v-if="appointments.length && !loading">
-      <h3>Your Appointments:</h3>
-      <p class="patient-greeting">Hello, {{ patientDetails.firstName }} {{ patientDetails.lastName }}!</p>
-      <ul class="appointment-list">
-        <li v-for="appt in appointments" :key="appt.appointmentId" class="appointment-item">
-          <strong>{{ new Date(appt.appointmentDateTime).toLocaleString() }}</strong><br />
-          Service: {{ appt.service.serviceName }}<br />
-          Doctor: {{ appt.doctor.firstName }} {{ appt.doctor.lastName }} ({{ appt.doctor.jobTitle }})<br />
-          Status: {{ appt.status }}<br />
-          Notes: {{ appt.notes || 'N/A' }}
-        </li>
-      </ul>
+    <div v-if="appointments.length > 0" class="appointments-display">
+      <h3>Your Appointments</h3>
+      <table class="appointments-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Doctor</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="appt in appointments" :key="appt.appointmentId">
+            <td>{{ appt.service ? appt.service.serviceName : 'N/A' }}</td>
+            <td>{{ appt.doctor ? (appt.doctor.fullName || `Dr. ${appt.doctor.firstName} ${appt.doctor.lastName}`) : 'N/A' }}</td>
+            <td>{{ formatDate(appt.appointmentDateTime) }}</td>
+            <td>{{ formatTime(appt.appointmentDateTime) }}</td>
+            <td>{{ appt.status }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-    <p v-else-if="!loading && codeSent && !appointments.length && !errorMessage">
-      No appointments found for this account or after verification.
-    </p>
+    <div v-else-if="appointments.length === 0 && !loading && verificationCode && !errorMessage" class="no-appointments-message">
+        No appointments found for the provided code.
+    </div>
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue';
-import { requestVerificationCode, verifyCodeAndGetAppointments } from '../services/api'; // Corrected import
+<script>
+import { ref, onMounted } from 'vue';
+import { requestVerificationCode, verifyCodeAndGetAppointments } from '@/services/api';
+import { useRoute } from 'vue-router'; 
 
-// Reactive variables for form inputs and state
-const contactIdentifier = ref('');
-const method = ref('email'); // Default to email
-const lastName = ref('');
-const verificationCode = ref('');
+export default {
+  name: 'AppointmentVerification',
+  setup() {
+    const route = useRoute(); 
 
-const codeSent = ref(false);
-const loading = ref(false);
-const errorMessage = ref('');
-const appointments = ref([]);
-const patientDetails = ref(null); // To store basic patient info after successful verification
+    const contact = ref('');
+    const method = ref('email');
+    const verificationCode = ref('');
+    const showVerificationInput = ref(false);
+    const appointments = ref([]);
+    const loading = ref(false);
+    const errorMessage = ref('');
+    const successMessage = ref('');
 
-// Function to request a verification code
-async function onRequestCode() {
-  loading.value = true;
-  errorMessage.value = ''; // Clear previous errors
-  appointments.value = []; // Clear previous appointments
-  patientDetails.value = null;
-
-  try {
-    const response = await apiClient.post('/PatientVerification/RequestCode', {
-      contactIdentifier: contactIdentifier.value,
-      method: method.value,
-      lastName: lastName.value,
-    });
-    codeSent.value = true;
-    // The backend's message is usually generic for security, so display that
-    // errorMessage.value = response.data.message; // Optional: If backend returns a message to display
-  } catch (error) {
-    console.error('Error requesting code:', error);
-    // Display a user-friendly error message, avoid exposing backend details
-    errorMessage.value = error.response?.data?.message || 'Failed to send verification code. Please check your details and try again.';
-    codeSent.value = false; // Stay on request form if sending failed
-  } finally {
-    loading.value = false;
-  }
-}
-
-// Function to verify the entered code
-async function onVerifyCode() {
-  loading.value = true;
-  errorMessage.value = ''; // Clear previous errors
-  appointments.value = []; // Clear previous appointments
-  patientDetails.value = null;
-
-  try {
-    const response = await apiClient.post('/PatientVerification/VerifyCode', {
-      contactIdentifier: contactIdentifier.value,
-      code: verificationCode.value,
-    });
-
-    // Assuming your backend returns patient details and appointments directly
-    // in the root of the response data (as per our last API design for VerifyCode)
-    patientDetails.value = {
-      firstName: response.data.firstName,
-      lastName: response.data.lastName,
-      patientId: response.data.patientID, // Corrected from patientId to patientID based on your API response
+    const prefillFromUrl = () => {
+      if (route.query.contact) {
+        contact.value = route.query.contact;
+        if (route.query.contact.includes('@')) {
+            method.value = 'email';
+        } else {
+            method.value = 'sms';
+        }
+      }
+      if (route.query.email && !route.query.contact) { 
+          contact.value = route.query.email;
+          method.value = 'email';
+      }
     };
-    appointments.value = response.data.appointments || [];
 
-    // Optionally, hide the verification form after successful display of appointments
-    // codeSent.value = false; // Could reset this to hide the form, or keep it to allow re-verification
+    const onRequestCode = async () => {
+      loading.value = true;
+      errorMessage.value = '';
+      successMessage.value = '';
 
-  } catch (error) {
-    console.error('Error verifying code:', error);
-    errorMessage.value = error.response?.data?.message || 'Invalid or expired code. Please try again or request a new code.';
-    appointments.value = []; // Clear appointments on error
-    patientDetails.value = null;
-  } finally {
-    loading.value = false;
-  }
-}
+      try {
+        const result = await requestVerificationCode({ ContactIdentifier: contact.value, Method: method.value }); // CRITICAL FIX: Changed 'contact' to 'ContactIdentifier', 'method' to 'Method'
+        successMessage.value = result.message || 'Verification code sent successfully!';
+        showVerificationInput.value = true;
+      } catch (error) {
+        errorMessage.value = error.response?.data?.message || 'Failed to request code. Please try again.';
+        console.error('Request Code Error:', error);
+      } finally {
+        loading.value = false;
+      }
+    };
 
-// Function to reset the form (e.g., if user wants to send a new code)
-function resetForm() {
-  contactIdentifier.value = '';
-  lastName.value = '';
-  verificationCode.value = '';
-  codeSent.value = false;
-  loading.value = false;
-  errorMessage.value = '';
-  appointments.value = [];
-  patientDetails.value = null;
-}
+    const onVerifyCode = async () => {
+      loading.value = true;
+      errorMessage.value = '';
+      successMessage.value = '';
+      appointments.value = [];
+
+      try {
+        const result = await verifyCodeAndGetAppointments({
+          ContactIdentifier: contact.value, // CRITICAL FIX: Changed 'contact' to 'ContactIdentifier'
+          Code: verificationCode.value, // CRITICAL FIX: Changed 'code' to 'Code'
+          Method: method.value, // CRITICAL FIX: Changed 'method' to 'Method'
+        });
+
+        if (result.appointments && result.appointments.length > 0) {
+          appointments.value = result.appointments;
+          successMessage.value = 'Code verified! Your appointments are listed below.';
+        } else {
+          successMessage.value = result.message || 'Code verified, but no appointments found.';
+        }
+      } catch (error) {
+        errorMessage.value = error.response?.data?.message || 'Verification failed. Please check your code and try again.';
+        console.error('Verify Code Error:', error);
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    const formatDate = (dateTimeString) => {
+      if (!dateTimeString) return 'N/A';
+      const date = new Date(dateTimeString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    const formatTime = (dateTimeString) => {
+      if (!dateTimeString) return 'N/A';
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+
+    onMounted(() => {
+        prefillFromUrl();
+    });
+
+    return {
+      contact,
+      method,
+      verificationCode,
+      showVerificationInput,
+      appointments,
+      loading,
+      errorMessage,
+      successMessage,
+      onRequestCode,
+      onVerifyCode,
+      formatDate,
+      formatTime,
+    };
+  },
+};
 </script>
 
-<style scoped>
-.appointment-verification {
-  max-width: 600px;
-  margin: 50px auto;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  background-color: #fff;
-  font-family: Arial, sans-serif;
+<style lang="scss" scoped>
+@import '../assets/styles/_common.scss'; // Adjust path based on location in /views
+
+.appointments-display, .appointments-list-view {
+  @include step-card-base;
+  max-width: 800px; // A bit wider for the table
+}
+
+.step-header {
+  @include step-header-base;
+  justify-content: flex-start;
+  margin-bottom: $spacing-xs;
+}
+
+.step-header-icon {
+  @include step-header-icon-base;
 }
 
 h2 {
-  text-align: center;
-  color: #333;
-  margin-bottom: 20px;
+  color: $color-text-dark;
+  font-size: $font-size-xxl;
+  line-height: 1.2;
 }
 
 p {
-  text-align: center;
-  color: #666;
-  margin-bottom: 25px;
+  color: $color-text-medium-grey;
+  font-size: $font-size-md;
+  margin-bottom: $spacing-xl;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: $spacing-lg; // 15px
 }
 
 label {
-  display: block;
-  margin-bottom: 5px;
-  color: #555;
+  font-size: $font-size-sm;
+  color: $color-text-dark;
+  margin-bottom: $spacing-xs;
   font-weight: bold;
+  display: flex;
+  align-items: center;
 }
 
 input[type="text"],
-input[type="email"],
 input[type="tel"],
+input[type="email"],
 select {
+  padding: $spacing-md $spacing-lg;
+  border: 1px solid $color-border-light;
+  border-radius: $spacing-xs; // 5px
+  font-size: $font-size-md;
+  color: $color-text-dark;
+  background-color: $color-bg-white;
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-sizing: border-box; /* Include padding in width */
-  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:focus {
+    border-color: $color-primary-blue;
+    box-shadow: 0 0 0 $spacing-xxs rgba($color-primary-blue, 0.2);
+    outline: none;
+  }
 }
 
-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1.1rem;
-  font-weight: bold;
-  transition: background-color 0.3s ease;
-  margin-top: 10px;
+button[type="submit"] {
+  @include primary-button;
+  width: auto; // Let button size to content
+  margin-top: $spacing-lg; // 15px
 }
 
-button:hover:not(:disabled) {
-  background-color: #0056b3;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.secondary-button {
-  background-color: #6c757d;
-}
-
-.secondary-button:hover:not(:disabled) {
-  background-color: #5a6268;
+.success-message {
+  color: $color-info;
+  background-color: lighten($color-info, 60%);
+  border: 1px solid $color-info;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $spacing-xs;
+  margin-top: $spacing-lg;
+  text-align: center;
 }
 
 .error-message {
-  color: #dc3545;
+  color: $color-error;
+  background-color: lighten($color-error, 60%);
+  border: 1px solid $color-error;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $spacing-xs;
+  margin-top: $spacing-lg;
   text-align: center;
-  margin-top: 15px;
-  font-weight: bold;
 }
 
-.patient-greeting {
-  font-size: 1.1rem;
-  font-weight: bold;
-  color: #28a745;
-  margin-top: 20px;
+.appointments-display {
+  margin-top: $spacing-xxl; // 30px
 }
 
-.appointment-list {
-  list-style-type: none;
-  padding: 0;
-  margin-top: 20px;
+.appointments-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: $spacing-md;
+  font-size: $font-size-sm;
+  color: $color-text-dark;
+
+  th, td {
+    padding: $spacing-sm $spacing-md;
+    border: 1px solid $color-border-light;
+    text-align: left;
+  }
+
+  th {
+    background-color: $color-bg-light;
+    font-weight: bold;
+    color: $color-text-dark;
+  }
+
+  tr:nth-child(even) {
+    background-color: lighten($color-bg-light, 2%);
+  }
 }
 
-.appointment-item {
-  background-color: #f8f9fa;
-  border: 1px solid #e2e6ea;
-  border-radius: 6px;
-  padding: 15px;
-  margin-bottom: 10px;
-  line-height: 1.6;
+.no-appointments-message {
+    text-align: center;
+    color: $color-text-medium-grey;
+    padding: $spacing-lg;
+    border: 1px dashed $color-border-medium;
+    border-radius: $spacing-xs;
+    margin-top: $spacing-xxl;
 }
 
-.appointment-item strong {
-  color: #007bff;
+.navigation-buttons {
+  margin-top: $spacing-xxl;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.secondary-button { // Reusing primary button style
+  @include secondary-button;
+  width: auto;
 }
 </style>

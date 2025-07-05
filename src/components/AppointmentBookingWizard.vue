@@ -129,6 +129,7 @@ import ChooseTime from './steps/ChooseTime.vue';
 import PatientDetailsForm from './steps/PatientDetailsForm.vue';
 import ReviewAndConfirm from './steps/ReviewAndConfirm.vue';
 import { bookAppointment as bookAppointmentApi } from '@/services/api'; 
+import { useRouter } from 'vue-router'; 
 
 export default {
   name: 'AppointmentBookingWizard',
@@ -141,6 +142,8 @@ export default {
     ReviewAndConfirm,
   },
   setup() {
+    const router = useRouter(); 
+
     const currentStep = ref(1);
     const totalSteps = 6;
     const stepNames = ['Service', 'Doctor', 'Date', 'Time', 'Details', 'Confirm'];
@@ -254,8 +257,20 @@ export default {
         bookingError.value = null;
     };
 
+    // MODIFIED: Use router to navigate to verification page with patient details for re-verification
     const viewAllAppointments = () => {
-        console.log("Navigating to view all appointments...");
+        if (bookingData.value.patientDetails && bookingData.value.patientDetails.contactNumber && bookingData.value.patientDetails.email) {
+            router.push({ 
+                name: 'RequestCode', // Navigate to the Request Code page
+                query: { 
+                    contact: bookingData.value.patientDetails.contactNumber, 
+                    email: bookingData.value.patientDetails.email 
+                } 
+            });
+        } else {
+            // Fallback if patient details were not captured during booking, go to general Request Code page
+            router.push({ name: 'RequestCode' }); 
+        }
     };
 
 
@@ -311,7 +326,6 @@ h1 {
   width: 70%; 
   margin: 0 auto $spacing-lg auto; 
   padding: 0;
-  position: relative;
   height: 60px;
 }
 
@@ -491,14 +505,14 @@ h1 {
 }
 
 .detail-item {
-  @include detail-item-base; // Use mixin
-  margin-bottom: $spacing-sm; // 8px
+  @include detail-item-base; 
+  margin-bottom: $spacing-sm; 
 }
 
 .detail-item strong {
   color: $color-text-dark;
-  font-size: $font-size-md; // 1em
-  margin-right: $spacing-xs; // 5px
+  font-size: $font-size-md; 
+  margin-right: $spacing-xs; 
   white-space: nowrap;
   flex-grow: 0;
   flex-shrink: 0;
@@ -506,8 +520,8 @@ h1 {
 
 .detail-item span {
   color: $color-text-dark;
-  font-size: $font-size-md; // 1em
-  font-weight: normal;
+  font-size: $font-size-md; 
+  font-weight: normal; 
   word-break: break-word;
   flex-grow: 1;
   flex-shrink: 1;
@@ -518,28 +532,28 @@ h1 {
 }
 
 .confirmation-email-text {
-  font-size: $font-size-sm; // 0.95em (closest to 0.9em)
-  color: $color-text-dark; // #333
+  font-size: $font-size-sm; 
+  color: $color-text-dark; 
   text-align: center;
-  margin-top: $spacing-lg; // 15px
+  margin-top: $spacing-lg; 
   line-height: 1.4;
 }
 
 .navigation-buttons {
-  margin-top: $spacing-xxl; // 30px
+  margin-top: $spacing-xxl; 
   display: flex;
-  flex-direction: column; // Stack buttons vertically
-  gap: $spacing-md; // 10px
+  flex-direction: column; 
+  gap: $spacing-md; 
   width: 100%;
 }
 
 .navigation-buttons .next-button {
-  @include primary-button;
+  @include primary-button; 
   width: 100%;
 }
 
 .navigation-buttons .secondary-button {
-  @include secondary-button;
+  @include secondary-button; 
   width: 100%;
   background-color: $color-bg-white;
   color: $color-primary-blue;
@@ -547,11 +561,10 @@ h1 {
 }
 
 .navigation-buttons .secondary-button:hover {
-  background-color: #f0f8ff;
+  background-color: #f0f8ff; 
   color: $color-primary-blue-darker;
 }
 
-/* Specific override for Confirm button */
 .confirm-button {
   background-color: $color-confirm-green;
 }

@@ -76,3 +76,23 @@ export const bookAppointment = async (appointmentData) => {
     handleApiError(error);
   }
 };
+
+export const getAppointmentsByPatientContact = async (patientContactDetails) => {
+  try {
+    // This expects query parameters like ?contactNumber=...&email=...
+    const response = await apiClient.get('/Appointments/ByPatientContact', { params: patientContactDetails });
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
+
+// NEW: Get Appointments by Patient ID Endpoint
+export const getAppointmentsByPatientId = async (patientId) => {
+  try {
+    const response = await apiClient.get(`/Appointments/ByPatientId/${patientId}`); // Calls new backend endpoint
+    return response.data;
+  } catch (error) {
+    handleApiError(error);
+  }
+};
