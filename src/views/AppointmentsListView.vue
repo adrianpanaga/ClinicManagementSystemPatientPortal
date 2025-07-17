@@ -408,9 +408,9 @@ p {
       color: $color-text-medium-grey;
     }
 
-    &.full-width-card-detail {
-        // Specific styles if needed for full width items within card
-    }
+    // &.full-width-card-detail {
+    //     // Specific styles if needed for full width items within card
+    // }
   }
 
   .appointment-status {
